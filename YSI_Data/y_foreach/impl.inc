@@ -754,6 +754,49 @@ native Iter_FastClear(IteratorArray:Name[]<>);
 #define Iter_Size_InternalA(%0,%1)    (F@s(%1)-F@s(%0))
 #define Iter_Size_InternalB(%0,%2,%1) (F@s(%1)-F@s(%0))
 
+/**--------------------------------------------------------------------------**\
+<summary>Iter_Advance</summary>
+<param name="iter">Name of the iterator to advance along (optional).</param>
+<param name="&cur">The current element.</param>
+<returns>
+        Are we still in the iterator?
+</returns>
+<remarks>
+        Moves "cur" along to the next element in the given iterator.  Returns false
+        if there are no elements left to move on to.
+</remarks>
+\**--------------------------------------------------------------------------**/
+ 
+#define Iter_Advance(%0,%1) (_Y_ITER_DETECTION(%1,%0,_iter_Advance_))
+ 
+/**--------------------------------------------------------------------------**\
+<summary>Iter_Recede</summary>
+<param name="iter">Name of the iterator to go back along (optional).</param>
+<param name="&cur">The current element.</param>
+<returns>
+        Are we still in the iterator?
+</returns>
+<remarks>
+        Moves "cur" along to the previous element in the given iterator.  Returns
+        false if there are no elements left to move back to.
+</remarks>
+\**--------------------------------------------------------------------------**/
+ 
+#define Iter_Recede(%0,%1) (_Y_ITER_DETECTION(%1,%0,_iter_Recede_))
+ 
+/**--------------------------------------------------------------------------**\
+<summary>Iter_Get</summary>
+<param name="iter">Name of the iterator.</param>
+<returns>
+        -
+</returns>
+<remarks>
+        Gets a movable reference to this iterator.
+</remarks>
+\**--------------------------------------------------------------------------**/
+ 
+#define Iter_Get(%0) (_Y_ITER_DETECTION(,%0,_Y_ITERF-))
+
 /*
 
     88b           d88                                                         
@@ -827,26 +870,62 @@ native Iter_FastClear(IteratorArray:Name[]<>);
 //  
 #define F@j:%7$%5(%0)       %5A(F@g(Iter_Single@%0,),F@h:Iterator@%0)
 #define F@i:%7$%5(%0<%2>%1) %5B(F@h:Iter_Multi@%0,%2,F@h:Iterator@%0%1)
-
-#define _Y_ITER_DO_FOREACH(%1,%0) (_:F@n:F@l:F@m:F@a$%1,%0$
-
+ 
+// Some of these macros DO NOT use "Iter" but "iter" instead - this is to avoid
+// some other macros matching the "I" twice.  We also swap some parameter orders
+// about to help the iterator name appending.  Specifically, the target variable
+// is always first, and the iterator name is always second, with any extra
+// iterator parameters next.
+#define _iter_Advance_M(%1,%0,%2) _:(%1=F@h:Iterator@%0[%1])<(F@s(Iterator@%0)-F@s(Iter_Multi@%0))
+#define _iter_Advance_S(%1,%0,%2) _:(%1=F@h:Iter_Func@%0(_:%1,%2))!=F@r(iterstart@%0)
+#define _iter_Advance_N(%1,%0) _:(%1=F@h:Iterator@%0[%1])!=(F@s(Iterator@%0)-1)
+#define _iter_Advance_Q(%1,%0,%2) _:(%1=Iter_Prev_InternalB(Iter_Multi@%0,,Iterator@%0,%1))<(F@s(Iterator@%0)-F@s(Iter_Multi@%0))
+#define _iter_Advance_R(%1,%0) _:(%1=Iter_Prev_InternalA(,Iterator@%0,%1))!=(F@s(Iterator@%0)-1)
+ 
+#define _iter_Recede_M(%1,%0,%2) _iter_Advance_Q(%1,%0,%2)
+#define _iter_Recede_S(%1,%0,%2) Cant_Reverse_Special_Iterators
+#define _iter_Recede_N(%1,%0) _iter_Advance_R(%1,%0)
+#define _iter_Recede_Q(%1,%0,%2) _iter_Advance_M(%1,%0,%2)
+#define _iter_Recede_R(%1,%0) _iter_Advance_N(%1,%0)
+ 
+#define _iter_Start_M(%1,%0,%2) F@s(Iterator@%0)-1-(%2)
+#define _iter_Start_S(%1,%0,%2) F@r(iterstart@%0)
+#define _iter_Start_N(%1,%0) F@s(Iterator@%0)-1
+#define _iter_Start_Q(%1,%0,%2) F@s(Iterator@%0)-1-(%2)
+#define _iter_Start_R(%1,%0) F@s(Iterator@%0)-1
+ 
+// Check if this "Iter_Get()" is being used in "for or alone.
+#define _Y_ITERF-%9(%0) F@x:F@z<%9>:_iter_Start_%9(%0)$%0$
+ 
+// Check if this iterator is being used in a "for" loop.
+#define F@x:F@z<%9>:%0$%8$)%1;%2Iter_%3(%4)%5;%6) %0)%1;%2(_iter_%3_%9(%4,%8))%5;%6)
+       
+// Strip out the extra information not in a "for" loop.
+#define F@z<%9>:%0$%8$ %0
+ 
+// Entry points to the format detections for a "foreach" loop.
+#define _Y_ITERL-%9(%0) _iter_Start_%9(%0));(_iter_Advance_%9(%0));
+#define _Y_ITER_DO_FOREACH(%1,%0) (_Y_ITER_DETECTION(%1,%0,_Y_ITERL-)
+#define _Y_ITER_DETECTION(%1,%0,%2) _:F@n:F@l:F@m:F@a$%1,%0$%2$
+ 
 // Multi-iterator.
-#define F@n:%9$%1,%0<%2>$ F@s(Iterator@%0)-1-(%2));_:(%1=F@h:Iterator@%0[%1])<(F@s(Iterator@%0)-F@s(Iter_Multi@%0));
-
+#define F@n:%9$%1,%0<%2>$%8$ %8M(%1,%0,%2)
+ 
 // Special iterator.
-#define F@l:%9$%1,%0(%2)%8$ F@r(iterstart@%0));_:(%1=F@h:Iter_Func@%0(_:%1,%2))!=F@r(iterstart@%0);
-
+#define F@l:%9$%1,%0(%2)%7$%8$ %8S(%1,%0,%2)
+ 
 // Normal iterator.
-#define F@m:%9$%1,%0$ F@s(Iterator@%0)-1);_:(%1=F@h:Iterator@%0[%1])!=(F@s(Iterator@%0)-1);
-
+#define F@m:%9$%1,%0$%8$ %8N(%1,%0)
+ 
 // Convert from a normal iterator to a special iterator with parameters.
-#define F@o)-2)+%8$%1,%0[%2]()$ F@o)-2)+%8$%1,%0(%2)$
-
+// UNSUPPORTED - "func" and "func()" used to be unified, but no more.
+//#define F@o)-2)+%7$%1,%0[%2]()$ F@o)-2)+%7$%1,%0(%2)$%7$ %8_(%0,%1,%2)
+ 
 // Reverse multi-iterator.
-#define F@p:%9$%1,%0<%2>$ F@s(Iterator@%0)-1-(%2));_:(%1=Iter_Prev_InternalB(Iter_Multi@%0,,Iterator@%0,%1))<(F@s(Iterator@%0)-F@s(Iter_Multi@%0));
-
+#define F@p:%9$%1,%0<%2>$%8$ %8Q(%1,%0,%2)
+ 
 // Reverse normal iterator.
-#define F@q:%9$%1,%0$ F@s(Iterator@%0)-1);_:(%1=Iter_Prev_InternalA(,Iterator@%0,%1))!=(F@s(Iterator@%0)-1);
+#define F@q:%9$%1,%0$%8$ %8R(%1,%0)
 
 // Declare a 
 //#define F@y:%0(%1) Iter_Func@%0(%1);const iterstart@%0=_:F@t:-1;Iter_Func@%0(%1)F@a$
